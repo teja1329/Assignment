@@ -3,6 +3,7 @@ package com.example.assignment.frontend
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import kotlin.math.roundToInt
 
 import android.net.Uri
 import android.os.Build
@@ -16,6 +17,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -48,8 +50,14 @@ import java.io.File
 import java.io.FileOutputStream
 import androidx.compose.runtime.MutableState
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.input.pointer.consumeAllChanges
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.geometry.Offset
 
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.unit.IntOffset
 import androidx.core.net.toFile
 import java.util.Locale
 
@@ -467,44 +475,61 @@ class AddProductScreen {
                         contentDescription = "Selected Image",
                         contentScale = ContentScale.Crop,
                         modifier = Modifier.fillMaxSize().clip(shape = RoundedCornerShape(26.dp))
-                        ,
 
-                        )
+                    )
 
-                    val imageFile: File? = selectedImageUri.value?.let { ConvertUriToFile(it) }
-                    onImageFileReady(imageFile)
-                    if (selectedImageUri.value == null) {
-                        onImageFileReady(null)
-                        Text(
-                            text = "",
-                            color = Color.Black,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.align(Alignment.Center)
-                        )
+                    LaunchedEffect(selectedImageUri.value) {
+                        selectedImageUri.value?.let { uri ->
+                            val imageFile = resizeAndConvertUriToFile(uri, context)
+                            onImageFileReady(imageFile)
+                        }
                     }
                 }
             }
         }
 
-        @Composable
-        fun ConvertUriToFile(uri: Uri?): File? {
-            val context = LocalContext.current
-            return uri?.let { uri ->
-                try {
-                    Log.d("ConvertUriToFile", "URI is not null: $uri")
-                    val inputStream = context.contentResolver.openInputStream(uri)
-                    val imageBitmap = BitmapFactory.decodeStream(inputStream)
-                    val file = File(context.cacheDir, "temp_image.png")
-                    file.createNewFile()
-                    val outputStream = FileOutputStream(file)
-                    imageBitmap.compress(Bitmap.CompressFormat.PNG, 100, outputStream)
-                    outputStream.close()
-                    file
-                } catch (e: Exception) {
-                    Log.e("ConvertUriToFile", "Error converting URI to file: ${e.message}")
-                    null
+        fun resizeAndConvertUriToFile(uri: Uri, context: Context): File? {
+            return try {
+                context.contentResolver.openInputStream(uri)?.use { inputStream ->
+                    val options = BitmapFactory.Options().apply {
+                        inJustDecodeBounds = true
+                    }
+                    BitmapFactory.decodeStream(inputStream, null, options)
+
+                    options.inSampleSize = calculateInSampleSize(options, 900, 900)
+                    options.inJustDecodeBounds = false
+
+                    context.contentResolver.openInputStream(uri)?.use { inputStream ->
+                        val resizedBitmap = BitmapFactory.decodeStream(inputStream, null, options)
+
+                        val outputFile = File(context.cacheDir, "resized_image.png")
+                        FileOutputStream(outputFile).use { outputStream ->
+                            resizedBitmap?.compress(Bitmap.CompressFormat.PNG, 100, outputStream)
+                        }
+                        outputFile
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("ConvertUriToFile", "Error converting URI to file: ${e.message}")
+                null
+            }
+        }
+
+
+        private fun calculateInSampleSize(options: BitmapFactory.Options, reqWidth: Int, reqHeight: Int): Int {
+            val (width: Int, height: Int) = options.run { outWidth to outHeight }
+            var inSampleSize = 1
+
+            if (height > reqHeight || width > reqWidth) {
+                val halfHeight: Int = height / 2
+                val halfWidth: Int = width / 2
+
+                while ((halfHeight / inSampleSize) >= reqHeight && (halfWidth / inSampleSize) >= reqWidth) {
+                    inSampleSize *= 2
                 }
             }
+
+            return inSampleSize
         }
 
         @Composable

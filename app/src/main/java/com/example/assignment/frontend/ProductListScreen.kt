@@ -3,6 +3,7 @@ package com.example.assignment.frontend
 import android.content.Context
 import android.net.ConnectivityManager
 import android.os.Build
+import androidx.annotation.RequiresApi
 import androidx.annotation.RequiresExtension
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -70,6 +71,7 @@ import com.example.assignment.frontend.AddProductScreen.Companion.BottomSheetDem
 
 class ProductListScreen {
     companion object {
+        @RequiresApi(Build.VERSION_CODES.P)
         @RequiresExtension(extension = Build.VERSION_CODES.S, version = 7)
         @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterialApi::class)
         @Composable
